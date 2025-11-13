@@ -245,6 +245,19 @@
                 "additionalProperties": false,
                 "description": "Security configuration for tool execution"
               },
+              "tableFormat": {
+                "type": "string",
+                "enum": ["markdown", "ascii", "grid", "compact"],
+                "default": "markdown",
+                "description": "Table formatting style for SQL results (default: markdown). Options: markdown (GitHub-style), ascii (plain text), grid (Unicode boxes), compact (minimal spacing)"
+              },
+              "maxDisplayRows": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+                "default": 100,
+                "description": "Maximum number of rows to display in result tables (default: 100). Rows beyond this limit will show a truncation message"
+              },
               "readOnlyHint": {
                 "type": "boolean",
                 "description": "@deprecated Use annotations.readOnlyHint instead"
