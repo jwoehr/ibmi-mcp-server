@@ -8,8 +8,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: Release
     permissions:
-      contents: write  # Required for creating releases
       id-token: write  # Required for npm provenance
 
     steps:
@@ -42,34 +42,7 @@ jobs:
         working-directory: ./server
         run: npm run build
 
-      # 6. Extract version and release notes from CHANGELOG
-      - name: Extract Release Notes
-        id: release_notes
-        working-directory: ./server
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-          # Extract current version section from CHANGELOG
-          sed -n "/^## \[${VERSION}\]/,/^## \[/p" CHANGELOG.md | sed '$d' > ../release-notes.md
-
-          # Fallback if no changelog section exists
-          if [ ! -s ../release-notes.md ]; then
-            echo "## Changes in v${VERSION}" > ../release-notes.md
-            git log -1 --pretty=format:"%B" >> ../release-notes.md
-          fi
-
-      # 7. Create GitHub Release
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          body_path: ./release-notes.md
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 8. Publish to npm
+      # 6. Publish to npm
       - name: Publish to npm
         working-directory: ./server
         run: npm publish --access public --provenance

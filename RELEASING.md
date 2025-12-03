@@ -15,8 +15,9 @@ The release process uses `standard-version` to automate:
 
 1. **Commit Access**: You must have push access to the `main` branch
 2. **npm Publishing Rights**: Verify you have publish permissions for `@ibm/ibmi-mcp-server` (requires access to `@ibm` organization)
-3. **Clean Working Directory**: Ensure all changes are committed
-4. **Up-to-date main**: Pull latest changes from `origin/main`
+3. **Release Environment Access**: You must be approved for the "Release" environment in GitHub (repository maintainers can configure this)
+4. **Clean Working Directory**: Ensure all changes are committed
+5. **Up-to-date main**: Pull latest changes from `origin/main`
 
 ## Release Workflow
 
@@ -117,17 +118,37 @@ git push --follow-tags origin main
 **This triggers the GitHub Actions workflow which:**
 1. Runs type checking, linting, and tests
 2. Builds the package
-3. Extracts release notes from CHANGELOG.md
-4. Creates GitHub release with formatted notes
-5. Publishes to npm with provenance
+3. Publishes to npm with provenance
 
-### Step 6: Verify Release
+**Note:** GitHub releases are created manually (see Step 6 below)
 
-After the GitHub Actions workflow completes (usually 2-3 minutes):
+### Step 6: Create GitHub Release (Manual)
 
-1. **Check GitHub Releases**: https://github.com/IBM/ibmi-mcp-server/releases
-2. **Verify npm**: `npm view @ibm/ibmi-mcp-server`
-3. **Check workflow**: https://github.com/IBM/ibmi-mcp-server/actions
+After the GitHub Actions workflow completes and npm publish succeeds:
+
+1. **Go to GitHub Releases**: https://github.com/IBM/ibmi-mcp-server/releases
+2. **Click "Create a new release"** or use the "Draft a new release" button
+3. **Choose the tag** you just pushed (e.g., `v0.2.0`)
+4. **Write release notes** using the CHANGELOG.md as a guide:
+   - Add a friendly summary of the release
+   - Organize changes into sections (New Features, Improvements, Bug Fixes)
+   - Add links to documentation or examples
+   - Reference relevant issues/PRs
+5. **Publish release** when ready
+
+**Tip:** Use CHANGELOG.md as your starting point, then enhance with:
+- User-friendly descriptions (not just commit messages)
+- Links to relevant documentation
+- Migration guides for breaking changes
+- Screenshots or examples where helpful
+
+### Step 7: Verify Release
+
+After publishing the GitHub release:
+
+1. **Verify npm**: `npm view @ibm/ibmi-mcp-server`
+2. **Check workflow**: https://github.com/IBM/ibmi-mcp-server/actions
+3. **Confirm GitHub release**: https://github.com/IBM/ibmi-mcp-server/releases
 
 ## Conventional Commits
 
@@ -221,14 +242,15 @@ If the GitHub Actions workflow fails:
 
 If you published the wrong version:
 
-1. **Unpublish from npm** (within 72 hours only):
-   ```bash
-   npm unpublish ibmi-mcp-server@0.2.0
-   ```
-
-2. **Delete GitHub release**:
+1. **Delete GitHub release** (if you created one):
    ```bash
    gh release delete v0.2.0
+   # Or delete manually in GitHub UI
+   ```
+
+2. **Unpublish from npm** (within 72 hours only):
+   ```bash
+   npm unpublish @ibm/ibmi-mcp-server@0.2.0
    ```
 
 3. **Delete git tag**:
@@ -299,9 +321,9 @@ Before creating a release:
 After pushing release:
 
 - [ ] GitHub Actions workflow completed successfully
-- [ ] GitHub release created with notes
 - [ ] Package published to npm
 - [ ] Version visible with `npm view @ibm/ibmi-mcp-server`
+- [ ] GitHub release created manually with polished notes
 - [ ] CHANGELOG.md updated in repository
 
 ## First-Time Release
@@ -319,15 +341,67 @@ npm run release:first
 
 This creates the initial CHANGELOG.md and tags v0.1.0 without requiring commits since a previous release.
 
-## Publishing is Automated
+## Creating GitHub Releases
+
+GitHub releases are created **manually** after npm publishing completes. This gives you full control over release note formatting and presentation.
+
+### Quick Guide to Manual Release Creation
+
+1. **Wait for npm publish to complete** (check GitHub Actions)
+2. **Go to Releases page**: https://github.com/IBM/ibmi-mcp-server/releases
+3. **Click "Draft a new release"**
+4. **Choose your tag** from the dropdown (e.g., `v0.2.0`)
+5. **Title your release** (e.g., "Version 0.2.0" or "v0.2.0 - OAuth Support")
+6. **Write release notes** in the description:
+   - Start with CHANGELOG.md content as a base
+   - Enhance with user-friendly descriptions
+   - Add sections: New Features, Improvements, Bug Fixes
+   - Include links to docs, PRs, or issues
+   - Use formatting: **bold**, `code`, bullet points
+7. **Click "Publish release"**
+
+### Release Notes Best Practices
+
+**Good release notes include:**
+- Clear summary of what changed
+- User-facing feature descriptions (not just commit messages)
+- Links to relevant documentation
+- Migration guides for breaking changes
+- Screenshots or code examples where helpful
+- Contributor acknowledgments
+
+**Example format:**
+```markdown
+## New Features 🎉
+
+**OAuth2 Authentication**: Added modern OAuth2 support for secure IBM i connections. Configure your OAuth2 provider in connection settings. See [authentication docs](link).
+
+## Improvements ⚡
+
+**Performance**: Query execution is now 2x faster for large result sets.
+
+## Bug Fixes 🐛
+
+**Connection Timeout**: Fixed intermittent timeout issues when connecting to IBM i systems.
+
+## What's Changed
+* feat: add OAuth2 authentication by @ajshedivy in #123
+* perf: optimize query execution by @contributor in #124
+* fix: resolve connection timeout issue by @ajshedivy in #125
+
+**Full Changelog**: https://github.com/IBM/ibmi-mcp-server/compare/v0.1.0...v0.2.0
+```
+
+## Publishing to npm is Automated
 
 **Important:** Do **NOT** run `npm publish` manually. Publishing happens automatically via GitHub Actions when you push a release tag.
 
 The workflow (`npm run release` → `git push --follow-tags`) triggers GitHub Actions, which:
 1. Runs all validation (typecheck, lint, test)
 2. Builds the package
-3. Creates GitHub release
-4. **Publishes to npm automatically**
+3. **Publishes to npm automatically**
+
+After npm publishing succeeds, you create the GitHub release manually (see "Creating GitHub Releases" section above).
 
 ### Manual Publishing (Emergency Only)
 
@@ -343,10 +417,37 @@ npm publish --access public
 ```
 
 **⚠️ Warning:** Manual publishing bypasses:
-- Automated changelog generation
-- GitHub release creation
+- Automated validation (tests, linting, type checking)
 - Version consistency checks
 - Audit trail in GitHub Actions
+- Release environment approval gates
+
+## Configuring the Release Environment
+
+The workflow uses a GitHub "Release" environment for approval gates before npm publishing.
+
+### Setup Steps:
+
+Repository administrators should configure the "Release" environment:
+
+1. Go to **Settings** → **Environments** → **New environment**
+2. Name it: `Release`
+3. Configure protection rules:
+   - ✅ **Required reviewers**: Add team members who can approve npm publishes
+   - ✅ **Wait timer**: Optional delay before publishing (e.g., 5 minutes)
+   - ✅ **Deployment branches**: Limit to `main` branch only
+
+### Environment Secrets:
+
+The `Release` environment needs:
+- `NPM_TOKEN` - npm authentication token with publish permissions for @ibm organization
+
+### Benefits:
+
+- **Manual approval**: Require approval before publishing to npm (even though automated)
+- **Audit trail**: Track who approved each npm publish in GitHub
+- **Branch protection**: Only publish from main branch
+- **Prevent accidents**: Catch mistakes before they reach npm registry
 
 ## Additional Resources
 
@@ -354,6 +455,7 @@ npm publish --access public
 - **standard-version**: https://github.com/conventional-changelog/standard-version
 - **Semantic Versioning**: https://semver.org/
 - **npm Provenance**: https://docs.npmjs.com/generating-provenance-statements
+- **GitHub Environments**: https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment
 
 ## Getting Help
 
@@ -361,5 +463,6 @@ If you encounter issues:
 
 1. Check GitHub Actions logs
 2. Review npm publish logs
-3. Consult this documentation
-4. Ask in the team chat or create an issue
+3. Verify Release environment configuration
+4. Consult this documentation
+5. Ask in the team chat or create an issue
