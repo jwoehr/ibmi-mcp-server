@@ -45,9 +45,7 @@ jobs:
         working-directory: ./server
         run: npm run build
 
-      # 6. Publish to npm
+      # 6. Publish to npm (using OIDC via Trusted Publisher)
       - name: Publish to npm
         working-directory: ./server
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
