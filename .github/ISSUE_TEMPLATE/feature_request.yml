@@ -1,0 +1,308 @@
+---
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement for the IBM i MCP Server
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the IBM i MCP Server! Please describe the feature you'd like to see added.
+
+        **Note**: For SQL tool/toolset requests, use the [SQL Tool Request](https://github.com/IBM/ibmi-mcp-server/issues/new?template=sql-tool-request.yml) template instead.
+
+  - type: checkboxes
+    attributes:
+      label: Before submitting your feature request
+      description: Please verify you've completed these steps
+      options:
+        - label: I've checked the [IBM i MCP Server documentation](https://ibm.github.io/ibmi-mcp-server/) to see if this feature already exists
+          required: false
+        - label: I've searched [DeepWiki](https://deepwiki.com/IBM/ibmi-mcp-server) for similar feature discussions
+          required: false
+        - label: I've reviewed [existing feature requests](https://github.com/IBM/ibmi-mcp-server/issues?q=is%3Aissue+label%3Aenhancement) to avoid duplicates
+          required: false
+        - label: I've checked the [roadmap](https://github.com/IBM/ibmi-mcp-server/discussions) to see if this is already planned
+          required: false
+
+  - type: dropdown
+    attributes:
+      label: Feature category
+      description: Which area of the server does this feature relate to?
+      options:
+        - Authentication & Security
+        - Connection Management & Pooling
+        - Configuration & Settings
+        - TypeScript Tools
+        - MCP Protocol & Communication
+        - Performance & Optimization
+        - Logging & Debugging
+        - Error Handling
+        - Documentation
+        - Agent/Agentic Workflows
+        - Other (please specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Feature description
+      description: A clear and concise description of the feature you'd like to see
+      placeholder: |
+        Add support for connection pooling per MCP client instance, allowing multiple Claude Desktop users to share a pool while maintaining isolation.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Problem or use case
+      description: What problem does this feature solve? Who would benefit from it?
+      placeholder: |
+        **Problem**: Currently, each MCP client creates its own connection pool, leading to:
+        - Excessive database connections when multiple users access the same IBM i system
+        - Slower startup times as each client initializes connections
+        - Resource waste on the IBM i server
+
+        **Who benefits**:
+        - Teams sharing IBM i resources
+        - Organizations with multiple AI users
+        - System administrators managing connection limits
+
+        **Business value**:
+        - Reduced database connection overhead
+        - Faster response times
+        - Better resource utilization
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Proposed solution
+      description: How would you like this feature to work? Include configuration examples if applicable.
+      placeholder: |
+        **Implementation approach**:
+        1. Add a `poolMode` configuration option with values: `per-client` (default), `shared`
+        2. When `poolMode: shared`, use a named pool identifier
+        3. Implement pool lifecycle management with reference counting
+
+        **Configuration example**:
+        ```json
+        {
+          "mcpServers": {
+            "ibmi": {
+              "command": "npx",
+              "args": ["-y", "@ibm/ibmi-mcp-server"],
+              "env": {
+                "DB2i_HOST": "ibmi.company.com",
+                "DB2i_USER": "MCPUSER",
+                "DB2i_PASS": "password",
+                "POOL_MODE": "shared",
+                "POOL_NAME": "team-pool"
+              }
+            }
+          }
+        }
+        ```
+
+        **User experience**:
+        - First client initializes the pool
+        - Subsequent clients reuse existing pool
+        - Pool closes when last client disconnects
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Alternative approaches
+      description: Have you considered other solutions? What are the trade-offs?
+      placeholder: |
+        **Alternative 1**: External connection pooler (e.g., PgBouncer-like)
+        - Pros: Centralized management, works for all clients
+        - Cons: Additional infrastructure, more complex setup
+
+        **Alternative 2**: Connection reuse within same process
+        - Pros: Simpler implementation
+        - Cons: Only helps single-client scenarios
+
+        **Why the proposed solution is better**:
+        - Native to MCP server, no external dependencies
+        - Opt-in via configuration
+        - Maintains backward compatibility
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      description: What should the feature do? Include examples of inputs and outputs.
+      placeholder: |
+        **Input scenario**: Three Claude Desktop clients connect with shared pool config
+
+        **Expected behavior**:
+        1. Client 1 connects → Pool created with 2 starting connections
+        2. Client 2 connects → Reuses existing pool, no new connections
+        3. Client 3 connects → Reuses existing pool, no new connections
+        4. Client 1 disconnects → Pool remains (2 clients still connected)
+        5. Clients 2 & 3 disconnect → Pool closes after grace period
+
+        **Logs**:
+        ```
+        [INFO] Client A: Initializing shared pool 'team-pool' (2 connections)
+        [INFO] Client B: Joining shared pool 'team-pool' (pool size: 2)
+        [INFO] Client C: Joining shared pool 'team-pool' (pool size: 2)
+        [INFO] Client A disconnected (2 clients remaining)
+        [INFO] Client B disconnected (1 client remaining)
+        [INFO] Client C disconnected (0 clients remaining, closing pool after 30s grace period)
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: API or configuration changes
+      description: What new settings, environment variables, or APIs would this feature introduce?
+      placeholder: |
+        **New environment variables**:
+        - `POOL_MODE`: `per-client` | `shared` (default: `per-client`)
+        - `POOL_NAME`: Identifier for shared pool (required when `POOL_MODE=shared`)
+        - `POOL_GRACE_PERIOD_MS`: Time to keep pool alive after last client (default: 30000)
+
+        **New configuration in MCP settings**:
+        ```json
+        {
+          "pooling": {
+            "mode": "shared",
+            "name": "team-pool",
+            "gracePeriodMs": 30000,
+            "maxSize": 10,
+            "startingSize": 2
+          }
+        }
+        ```
+
+        **Backward compatibility**:
+        - Default behavior unchanged (per-client pooling)
+        - Existing configurations continue to work
+        - No breaking changes to existing APIs
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Impact on existing functionality
+      description: Will this feature affect existing behavior? Are there breaking changes?
+      placeholder: |
+        **No breaking changes**: Feature is opt-in via configuration
+
+        **Potential impacts**:
+        - Shared pools may have higher contention during peak usage
+        - Pool health monitoring becomes more critical
+        - Need to handle pool ownership/cleanup on crashes
+
+        **Migration path**: None needed, feature is additive
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Security considerations
+      description: Are there security implications? What safeguards are needed?
+      placeholder: |
+        **Considerations**:
+        - Pool names should not expose sensitive information
+        - Credentials must not be logged or exposed
+        - Pool isolation must be maintained (no cross-pool data leakage)
+        - Access control: who can join a shared pool?
+
+        **Proposed safeguards**:
+        - Pool name validation (alphanumeric + hyphens only)
+        - Credential hashing for pool identity
+        - Connection-level user context preservation
+        - Audit logging for pool access
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Testing strategy
+      description: How should this feature be tested?
+      placeholder: |
+        **Unit tests**:
+        - Pool lifecycle (create, reuse, close)
+        - Reference counting logic
+        - Grace period timeout handling
+
+        **Integration tests**:
+        - Multiple clients joining/leaving pool
+        - Pool cleanup on abnormal termination
+        - Configuration validation
+
+        **Performance tests**:
+        - Connection overhead comparison (shared vs per-client)
+        - Concurrent query execution under load
+        - Pool saturation scenarios
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Documentation requirements
+      description: What documentation needs to be created or updated?
+      placeholder: |
+        **New documentation**:
+        - Shared pooling configuration guide
+        - Best practices for pool sizing
+        - Troubleshooting shared pool issues
+
+        **Updated documentation**:
+        - Connection pooling overview
+        - Configuration reference
+        - Architecture diagrams
+    validations:
+      required: false
+
+  - type: dropdown
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Critical (blocking my use case)
+        - High (significant impact on workflows)
+        - Medium (nice to have)
+        - Low (minor improvement)
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Related issues or discussions
+      description: Link to related issues, pull requests, or community discussions
+      placeholder: |
+        - Related to #123 (connection pool exhaustion)
+        - Discussed in community forum: [link]
+        - Similar implementation in project X: [link]
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Any other information, screenshots, diagrams, or references
+      placeholder: |
+        **Diagrams**: [attach architecture diagram]
+        **References**:
+        - IBM i connection pooling best practices: [link]
+        - MCP protocol spec: [link]
+        **Example implementations**: [link to similar features in other projects]
+    validations:
+      required: false
+
+  - type: checkboxes
+    attributes:
+      label: Contribution
+      description: Are you willing to contribute to this feature's implementation?
+      options:
+        - label: I can help design the solution
+        - label: I can implement the feature (TypeScript/Node.js)
+        - label: I can help write tests
+        - label: I can help write documentation
+        - label: I can help with code review

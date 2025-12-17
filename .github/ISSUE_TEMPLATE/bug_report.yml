@@ -1,0 +1,171 @@
+---
+name: 🐛 Bug report
+description: Create a report to help us fix your bug
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this bug! Please fill out the information below to help us diagnose and fix the issue quickly.
+
+  - type: checkboxes
+    attributes:
+      label: Before submitting your bug report
+      description: Please verify you've completed these steps before submitting
+      options:
+        - label: I've checked the [IBM i MCP Server documentation](https://ibm.github.io/ibmi-mcp-server/) for relevant information
+          required: false
+        - label: I've searched [DeepWiki](https://deepwiki.com/IBM/ibmi-mcp-server) for related IBM i database issues
+          required: false
+        - label: I've searched [existing issues](https://github.com/IBM/ibmi-mcp-server/issues?q=is%3Aissue) to see if this bug was already reported
+          required: false
+
+  - type: textarea
+    attributes:
+      label: Bug description
+      description: A clear and concise description of what the bug is
+      placeholder: |
+        When I try to execute a query using the `execute-sql` tool, I get an authentication error even though my credentials are correct.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      description: Steps to reproduce the behavior. Include code snippets, SQL statements, or configuration if relevant.
+      placeholder: |
+        1. Configure MCP server with valid IBM i credentials
+        2. Run query: `SELECT * FROM QSYS2.SYSTABLES`
+        3. Observe authentication failure error
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen
+      placeholder: |
+        Query should execute successfully and return table information
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Actual behavior
+      description: What actually happened instead
+      placeholder: |
+        Error: Authentication failed with code -1
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: SQL Tool Information
+      description: If the bug is related to an SQL tool, provide the tool name, SQL statement, and any parameters
+      placeholder: |
+        **Tool name**: `list-tables`
+        **SQL statement** (if custom tool):
+        ```sql
+        SELECT * FROM QSYS2.SYSTABLES WHERE TABLE_SCHEMA = 'MYLIB'
+        ```
+        **Parameters**:
+        - schema: "MYLIB"
+        **YAML configuration** (if applicable):
+        ```yaml
+        tools:
+          list-my-tables:
+            source: prod
+            statement: SELECT * FROM QSYS2.SYSTABLES WHERE TABLE_SCHEMA = :schema
+            parameters:
+              - name: schema
+                type: string
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Environment information
+      description: Information about your environment
+      value: |
+        - **OS**: [e.g., macOS 14.2, Windows 11, Ubuntu 22.04]
+        - **MCP Server Version**: [e.g., 0.1.2]
+        - **IBM i OS Version**: [e.g., 7.5]
+        - **MCP Client**: [e.g., Claude Desktop 0.7.1, Continue, Zed]
+        - **Node.js Version**: [e.g., v20.10.0]
+        - **Connection Method**: [e.g., Environment variables, YAML sources, HTTP authentication]
+      render: Markdown
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Server configuration
+      description: Relevant server configuration (redact sensitive information like passwords, hostnames)
+      placeholder: |
+        **Environment variables** (if using):
+        - DB2i_HOST: (redacted)
+        - DB2i_USER: (redacted)
+        - DB2i_IGNORE_UNAUTHORIZED: true
+
+        **YAML configuration** (if using):
+        ```yaml
+        sources:
+          prod:
+            host: xxx.xxx.xxx.xxx
+            user: MYUSER
+            ignore-unauthorized: true
+        ```
+
+        **MCP settings configuration**:
+        ```json
+        {
+          "mcpServers": {
+            "ibmi": {
+              "command": "npx",
+              "args": ["-y", "@ibm/ibmi-mcp-server"]
+            }
+          }
+        }
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Log output
+      description: |
+        Relevant log output from the MCP server.
+
+        **To get logs:**
+        - Check Claude Desktop logs: `~/Library/Logs/Claude/mcp*.log` (macOS) or `%APPDATA%\Claude\logs\` (Windows)
+        - Check server stderr output if running manually
+        - Enable debug logging by setting `LOG_LEVEL=debug` environment variable
+
+        Please include the last 50-100 lines or the relevant error section.
+      placeholder: |
+        2024-01-15 10:30:45 [ERROR] Connection failed: Authentication error
+        2024-01-15 10:30:45 [DEBUG] Pool state: initialized=false, connecting=true
+        ...
+      render: Shell
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Screenshots or videos
+      description: If applicable, add screenshots or screen recordings to help explain your problem
+      placeholder: Drag and drop images or videos here
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here
+      placeholder: |
+        - This started happening after upgrading from v0.1.1 to v0.1.2
+        - The issue only occurs with certain table names containing special characters
+        - Works fine when testing with SQL directly via JDBC
+    validations:
+      required: false

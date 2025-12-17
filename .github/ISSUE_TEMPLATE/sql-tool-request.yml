@@ -1,0 +1,263 @@
+---
+name: 🛠️ SQL Tool/Toolset Request
+description: Request a new SQL tool or toolset to be added to the default collection
+labels: [enhancement, sql-tool]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping expand the IBM i MCP Server's SQL tool library! This form will help us understand your use case and design an effective tool.
+
+        **Note**: This form is for YAML-based SQL tools. For TypeScript-based tools or other enhancements, use the [Feature Request](https://github.com/IBM/ibmi-mcp-server/issues/new?template=feature_request.yml) template.
+
+  - type: checkboxes
+    attributes:
+      label: Before submitting your request
+      description: Please verify you've completed these steps
+      options:
+        - label: I've checked the [existing SQL tools documentation](https://ibm.github.io/ibmi-mcp-server/tools/sql-tools) to see if this tool already exists
+          required: false
+        - label: I've searched [DeepWiki](https://deepwiki.com/IBM/ibmi-mcp-server) for similar tool requests or implementations
+          required: false
+        - label: I've reviewed [existing tool requests](https://github.com/IBM/ibmi-mcp-server/issues?q=is%3Aissue+label%3Asql-tool) to avoid duplicates
+          required: false
+
+  - type: checkboxes
+    attributes:
+      label: Request type
+      description: What are you requesting? (Select all that apply)
+      options:
+        - label: Single SQL tool
+        - label: Toolset (collection of related tools)
+
+  - type: input
+    attributes:
+      label: Proposed tool/toolset name
+      description: Suggested name for the tool or toolset (use kebab-case)
+      placeholder: "e.g., analyze-table-size, db-performance-monitoring"
+    validations:
+      required: true
+
+  - type: dropdown
+    attributes:
+      label: Domain/Category
+      description: Which domain does this tool belong to?
+      options:
+        - System Administration
+        - Performance Monitoring
+        - Database Management
+        - Security & Auditing
+        - Job Management
+        - Application Development
+        - Data Analysis
+        - Backup & Recovery
+        - Other (please specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Use case description
+      description: Describe the problem this tool solves and who would use it
+      placeholder: |
+        **Problem**: DBAs need to quickly identify tables consuming excessive disk space to plan data archival.
+
+        **Target users**: Database administrators, system managers
+
+        **Business value**: Proactive capacity planning and storage optimization
+
+        **Frequency of use**: Daily/weekly monitoring tasks
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Tool scope and behavior
+      description: What should the tool do? Include input parameters and expected output.
+      placeholder: |
+        **Inputs**:
+        - `schema` (optional): Library/schema to analyze, defaults to all schemas
+        - `min_size_kb` (optional): Minimum table size threshold in KB, defaults to 102400 (100MB)
+
+        **Outputs**:
+        - Table name
+        - Schema/library name
+        - Number of rows
+        - Size in KB
+        - Last data change timestamp
+
+        **Behavior**:
+        - Query QSYS2.SYSTABLESTAT for table statistics
+        - Filter by size threshold in KB
+        - Sort by size in KB descending
+        - Return top 50 largest tables
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: SQL implementation
+      description: Provide the SQL query/statement for this tool (or describe the queries needed for a toolset)
+      placeholder: |
+        ```sql
+        SELECT
+          TABLE_SCHEMA,
+          TABLE_NAME,
+          NUMBER_ROWS,
+          DATA_SIZE / 1024 AS SIZE_KB,
+          LAST_USED_TIMESTAMP
+        FROM QSYS2.SYSTABLESTAT
+        WHERE DATA_SIZE / 1024 >= :min_size_kb
+          AND (:schema IS NULL OR TABLE_SCHEMA = :schema)
+        ORDER BY DATA_SIZE / 1024 DESC
+        FETCH FIRST 50 ROWS ONLY
+        ```
+
+        **For toolsets**, list each tool with its query:
+        - `tool-1-name`: [brief description + query]
+        - `tool-2-name`: [brief description + query]
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Proposed YAML configuration
+      description: Draft YAML configuration for the tool(s)
+      placeholder: |
+        **Single tool example**:
+        ```yaml
+        tools:
+          analyze-table-size:
+            enabled: true
+            source: default
+            description: "Analyze and report tables by size with optional schema filtering"
+            statement: |
+              SELECT TABLE_SCHEMA, TABLE_NAME, NUMBER_ROWS,
+                     DATA_SIZE / 1024 AS SIZE_KB,
+                     LAST_USED_TIMESTAMP
+              FROM QSYS2.SYSTABLESTAT
+              WHERE DATA_SIZE / 1024 >= :min_size_kb
+                AND (:schema IS NULL OR TABLE_SCHEMA = :schema)
+              ORDER BY DATA_SIZE / 1024 DESC
+              FETCH FIRST 50 ROWS ONLY
+            parameters:
+              - name: schema
+                type: string
+                description: "Library/schema to analyze (optional)"
+                required: false
+              - name: min_size_kb
+                type: integer
+                description: "Minimum table size in KB"
+                default: 102400
+                min: 1
+            domain: sysadmin
+            category: capacity-planning
+            security:
+              readOnly: true
+            annotations:
+              readOnlyHint: true
+        ```
+
+        **Toolset example**:
+        ```yaml
+        toolsets:
+          performance-monitoring:
+            title: "Database Performance Monitoring"
+            description: "Tools for monitoring IBM i database performance"
+            tools:
+              - analyze-table-size
+              - check-index-usage
+              - monitor-active-jobs
+        ```
+      render: YAML
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Example usage
+      description: Show how an AI agent would use this tool
+      placeholder: |
+        **User prompt**: "Show me the largest tables in the PRODLIB schema"
+
+        **Agent action**: Call `analyze-table-size` tool with parameters:
+        - schema: "PRODLIB"
+        - min_size_kb: 102400  (100MB threshold)
+
+        **Expected result**:
+        | TABLE_SCHEMA | TABLE_NAME | NUMBER_ROWS | SIZE_KB   | LAST_USED_TIMESTAMP |
+        |--------------|------------|-------------|-----------|---------------------|
+        | PRODLIB      | CUSTOMERS  | 1250000     | 2509312   | 2024-01-15 14:30:00 |
+        | PRODLIB      | ORDERS     | 5000000     | 1894400   | 2024-01-15 14:25:00 |
+        | ...          | ...        | ...         | ...       | ...                 |
+
+        **Agent response**: "I found 12 tables in PRODLIB over 100MB. The largest is CUSTOMERS at 2.4GB (2.5M KB) with 1.25M rows, last accessed today at 2:30 PM."
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: Security considerations
+      description: What security aspects should be considered for this tool?
+      options:
+        - label: This tool only performs read operations (SELECT)
+        - label: This tool modifies data (INSERT/UPDATE/DELETE)
+        - label: This tool performs DDL operations (CREATE/ALTER/DROP)
+        - label: This tool requires elevated privileges
+        - label: This tool accesses sensitive data (requires security review)
+
+  - type: textarea
+    attributes:
+      label: IBM i version requirements
+      description: Does this tool require specific IBM i OS versions, PTFs, or features?
+      placeholder: |
+        - **Minimum IBM i version**: 7.3 TR6
+        - **Required PTFs**: None
+        - **SQL services used**: QSYS2.SYSTABLESTAT (available since 7.1)
+        - **Special authorities**: *ALLOBJ for cross-library access
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Testing notes
+      description: How can maintainers test this tool? Include sample data setup if needed.
+      placeholder: |
+        **Test setup**:
+        1. Create test library: `CREATE SCHEMA TESTLIB`
+        2. Create sample tables with varying sizes
+        3. Run tool with `schema: "TESTLIB"`
+
+        **Expected behavior**:
+        - Returns tables sorted by size
+        - Respects min_size_mb parameter
+        - Handles NULL schema (all schemas)
+
+        **Edge cases to test**:
+        - Empty schema
+        - Non-existent schema name
+        - Schema with no tables over threshold
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Any other information, references, or related tools
+      placeholder: |
+        - Related IBM i documentation: [link]
+        - Similar tools in other systems: [description]
+        - Community discussion: [link]
+        - Alternative implementations considered: [description]
+    validations:
+      required: false
+
+  - type: checkboxes
+    attributes:
+      label: Contribution
+      description: Are you willing to contribute to this tool's implementation?
+      options:
+        - label: I can help write the SQL query
+        - label: I can help with the YAML configuration
+        - label: I can help test the tool
+        - label: I can help write documentation
