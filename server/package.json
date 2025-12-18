@@ -58,7 +58,13 @@
     "release:minor": "standard-version --release-as minor",
     "release:major": "standard-version --release-as major",
     "release:patch": "standard-version --release-as patch",
-    "release:first": "standard-version --first-release"
+    "release:first": "standard-version --first-release",
+    "release:prepare": "./scripts/release-prepare.sh",
+    "release:prepare:patch": "./scripts/release-prepare.sh patch",
+    "release:prepare:minor": "./scripts/release-prepare.sh minor",
+    "release:prepare:major": "./scripts/release-prepare.sh major",
+    "release:finalize": "./scripts/release-finalize.sh",
+    "release:undo": "./scripts/release-undo.sh"
   },
   "dependencies": {
     "@duckdb/node-api": "^1.3.2-alpha.26",

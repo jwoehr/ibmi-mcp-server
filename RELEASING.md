@@ -4,12 +4,13 @@ This document describes the automated release process for the `server/` package 
 
 ## Overview
 
-The release process uses `standard-version` to automate:
-- Version bumping in `package.json` and `package-lock.json`
-- Changelog generation from commit messages
-- Git tag creation
-- GitHub release creation with release notes
-- npm package publication
+The release process is split into **three phases** to enable manual changelog review and enhancement:
+
+1. **Prepare**: Run prerelease checks and generate changelog (WITHOUT committing)
+2. **Review**: Manually review and optionally enhance the changelog
+3. **Finalize**: Create commit, tag, and push to trigger automation
+
+This workflow uses `standard-version` for version bumping and changelog generation, but prevents automatic commits until after human review.
 
 ## Prerequisites
 
@@ -21,108 +22,141 @@ The release process uses `standard-version` to automate:
 
 ## Release Workflow
 
-### Step 1: Ensure Clean State
+The new release workflow is split into three distinct phases for better control and changelog quality.
+
+### Phase 1: Prepare Release
+
+Navigate to the `server` directory and run the prepare script:
 
 ```bash
-# Switch to main branch
-git checkout main
-
-# Pull latest changes
-git pull origin main
-
-# Verify clean working directory
-git status
-```
-
-### Step 2: Run Automated Release
-
-The release process uses conventional commits to determine version bumps automatically.
-
-**Note:** All release commands can be run from the **root directory** or from `server/`.
-
-#### Automatic Version Bump (Recommended)
-
-```bash
-# From root directory (recommended)
-npm run release
-
-# OR from server directory
 cd server
-npm run release
+./scripts/release-prepare.sh [auto|patch|minor|major]
 ```
 
-This analyzes your commits since the last release and automatically:
-- Bumps **patch** version (0.1.0 → 0.1.1) for bug fixes
-- Bumps **minor** version (0.1.0 → 0.2.0) for new features
-- Bumps **major** version (0.1.0 → 1.0.0) for breaking changes
+**What this does:**
+1. ✅ Runs `npm test` (must pass)
+2. ✅ Runs `npm run typecheck` (must pass)
+3. 📝 Generates CHANGELOG.md from conventional commits
+4. 📝 Bumps version in `package.json` and `package-lock.json`
+5. ⚠️ **Does NOT create commit or tag yet**
 
-#### Manual Version Bump
+**Version bump options:**
+- `auto` (default) - Automatically determines version from commits
+- `patch` - Patch release (0.1.0 → 0.1.1)
+- `minor` - Minor release (0.1.0 → 0.2.0)
+- `major` - Major release (0.1.0 → 1.0.0)
 
-If you want to specify the version bump type explicitly:
+**Example:**
+```bash
+./scripts/release-prepare.sh minor
+```
+
+If tests or typecheck fail, the script exits without making any changes.
+
+### Phase 2: Review Changelog (Manual)
+
+After prepare completes, you have uncommitted changes ready for review:
 
 ```bash
-# From root directory (recommended)
-npm run release:patch   # Patch release (0.1.0 → 0.1.1)
-npm run release:minor   # Minor release (0.1.0 → 0.2.0)
-npm run release:major   # Major release (0.1.0 → 1.0.0)
+# View all changes
+git diff
 
-# OR from server directory
-cd server
-npm run release:patch
-npm run release:minor
-npm run release:major
+# Review the generated changelog
+cat CHANGELOG.md
+
+# (Optional) Enhance with Claude
+claude "Review and enhance the v0.2.0 changelog for clarity and completeness"
+
+# (Optional) Manually edit if needed
+vim CHANGELOG.md
 ```
 
-**What standard-version does:**
-1. Bumps version in `package.json` and `package-lock.json`
-2. Generates/updates `CHANGELOG.md` with commits since last release
-3. Creates git commit: `chore(release): 0.2.0`
-4. Creates git tag: `v0.2.0`
+**Tips for enhancing changelogs:**
+- Add user-facing descriptions (not just technical commit messages)
+- Group related changes together
+- Add links to documentation or issues
+- Highlight breaking changes clearly
+- Remove internal/non-user-facing changes
 
-### Step 3: Review Changes (Recommended)
+Take your time in this phase - the changelog is what users see!
 
-Before pushing, review what standard-version created:
+### Phase 3: Finalize Release
+
+When you're satisfied with the changelog and changes:
 
 ```bash
-# View the generated changelog
-cat server/CHANGELOG.md
-
-# View the release commit
-git show HEAD
-
-# Check the tag was created
-git tag -l
+./scripts/release-finalize.sh
 ```
 
-### Step 4: Undo Release (If Needed)
-
-If something looks wrong, undo before pushing:
-
-```bash
-# Delete the tag
-git tag -d v0.2.0
-
-# Undo the commit
-git reset --hard HEAD~1
-```
-
-Then fix the issues and run `npm run release` again.
-
-### Step 5: Push to Trigger Automation
-
-```bash
-# Push the commit and tag together
-git push --follow-tags origin main
-```
+**What this does:**
+1. Validates that release files are modified but not committed
+2. Shows final changelog preview
+3. Asks for confirmation
+4. Stages files: `package.json`, `package-lock.json`, `CHANGELOG.md`
+5. Creates commit: `chore(release): X.Y.Z`
+6. Creates annotated tag: `vX.Y.Z`
+7. Pushes commit and tag to `origin/main`
 
 **This triggers the GitHub Actions workflow which:**
-1. Runs type checking, linting, and tests
-2. Builds the package
-3. Publishes to npm with provenance
+- Runs type checking, linting, and tests
+- Builds the package
+- Publishes to npm with provenance
 
-**Note:** GitHub releases are created manually (see Step 6 below)
+### Undo Release (Before Pushing)
 
-### Step 6: Create GitHub Release (Manual)
+If you need to undo at any point **before finalizing**:
+
+```bash
+./scripts/release-undo.sh
+```
+
+**This intelligently handles two scenarios:**
+
+**Scenario A** - Uncommitted changes (after prepare):
+- Resets `package.json`, `package-lock.json`, `CHANGELOG.md` to HEAD
+- You can re-run prepare
+
+**Scenario B** - Committed and tagged (after finalize, before push):
+- Deletes the local tag
+- Resets to previous commit
+- You can start over
+
+⚠️ **Cannot undo after pushing!** See troubleshooting section for recovery steps.
+
+### Using npm Scripts
+
+You can also use npm scripts instead of calling the shell scripts directly:
+
+```bash
+cd server
+
+# Prepare release
+npm run release:prepare        # auto version
+npm run release:prepare:patch  # patch version
+npm run release:prepare:minor  # minor version
+npm run release:prepare:major  # major version
+
+# Finalize release
+npm run release:finalize
+
+# Undo release
+npm run release:undo
+```
+
+### Quick Reference
+
+```bash
+# Complete release workflow
+cd server
+npm run release:prepare:minor  # Prepare with minor version bump
+# Review and edit CHANGELOG.md
+npm run release:finalize       # Commit, tag, and push
+
+# Undo if needed (before finalize)
+npm run release:undo
+```
+
+### Create GitHub Release (Manual)
 
 After the GitHub Actions workflow completes and npm publish succeeds:
 
@@ -226,11 +260,125 @@ Use scopes to indicate which part of the codebase changed:
 - `api`: Public API
 - `deps`: Dependencies
 
+## Enhancing Changelogs
+
+The auto-generated changelog from conventional commits is a good starting point, but often benefits from human enhancement for clarity and user-friendliness.
+
+### Why Enhance Changelogs?
+
+Auto-generated changelogs:
+- Use raw commit messages (often technical)
+- May include internal changes users don't care about
+- Lack context and examples
+- Don't highlight important changes
+
+Enhanced changelogs:
+- Use user-friendly language
+- Focus on user-facing changes
+- Provide context and migration guides
+- Highlight breaking changes clearly
+
+### Using Claude for Enhancement
+
+During the review phase, you can use Claude to enhance the changelog:
+
+```bash
+# After running release-prepare.sh
+claude "Review the CHANGELOG.md and enhance it for clarity. Focus on:
+- Making descriptions user-friendly
+- Highlighting breaking changes
+- Adding migration guidance where needed
+- Removing internal/non-user-facing changes"
+```
+
+**Example prompts:**
+- `"Enhance this changelog for v0.2.0 with user-friendly descriptions"`
+- `"Review this changelog and suggest improvements for clarity"`
+- `"Rewrite these technical commit messages as user-facing feature descriptions"`
+
+### Manual Editing Tips
+
+When manually editing `CHANGELOG.md`:
+
+**DO:**
+- ✅ Use clear, non-technical language
+- ✅ Group related changes together
+- ✅ Add links to issues/PRs for context
+- ✅ Highlight breaking changes prominently
+- ✅ Include migration guides for breaking changes
+- ✅ Add code examples where helpful
+
+**DON'T:**
+- ❌ Remove the version header or date
+- ❌ Change the markdown link format
+- ❌ Remove important bug fixes
+- ❌ Add unreleased changes to this version
+
+### Example: Before and After
+
+**Before (Auto-generated):**
+```markdown
+### Features
+* feat(sql): add query timeout parameter (#123)
+```
+
+**After (Enhanced):**
+```markdown
+### Features
+* **Query Timeouts**: SQL queries now support a timeout parameter to prevent long-running queries from blocking. Set `timeout: 30000` (in ms) in your query options. [#123](https://github.com/IBM/ibmi-mcp-server/pull/123)
+```
+
 ## Troubleshooting
+
+### Tests Failing During Prepare
+
+If `npm test` fails during the prepare phase:
+
+1. The script exits before making any changes
+2. Fix the failing tests
+3. Commit the fixes
+4. Run `release-prepare.sh` again
+
+**No cleanup needed** - nothing was changed.
+
+### Typecheck Failing During Prepare
+
+If `npm run typecheck` fails during the prepare phase:
+
+1. The script exits before making any changes
+2. Fix the type errors
+3. Commit the fixes
+4. Run `release-prepare.sh` again
+
+**No cleanup needed** - nothing was changed.
+
+### Need to Undo Uncommitted Release
+
+If you ran `release-prepare.sh` but want to start over:
+
+```bash
+cd server
+./scripts/release-undo.sh
+```
+
+This resets `package.json`, `package-lock.json`, and `CHANGELOG.md` to HEAD.
+
+### Already Committed But Need Changes
+
+If you ran `release-finalize.sh` but haven't pushed yet:
+
+```bash
+cd server
+./scripts/release-undo.sh  # Deletes tag and resets commit
+# Make your changes
+./scripts/release-prepare.sh [type]
+# Review again
+./scripts/release-finalize.sh
+```
 
 ### Release Failed After Pushing
 
-If the GitHub Actions workflow fails:
+If the GitHub Actions workflow fails after you've pushed:
 
 1. **Check workflow logs**: https://github.com/IBM/ibmi-mcp-server/actions
 2. **Common issues**:
@@ -308,23 +456,38 @@ Push with `git push --follow-tags origin main` as usual.
 
 ## Release Checklist
 
-Before creating a release:
+### Before Prepare Phase
 
 - [ ] All tests passing locally: `npm test`
+- [ ] Typecheck passes: `npm run typecheck`
 - [ ] Code builds successfully: `npm run build`
 - [ ] Commits use conventional format
-- [ ] BREAKING CHANGES documented if applicable
-- [ ] Main branch is up-to-date
-- [ ] No uncommitted changes
-- [ ] Ready for changelog review
+- [ ] BREAKING CHANGES documented in commits if applicable
+- [ ] Main branch is up-to-date: `git pull origin main`
+- [ ] No uncommitted changes: `git status`
 
-After pushing release:
+### During Review Phase
+
+- [ ] Review generated `CHANGELOG.md`
+- [ ] Enhance changelog with user-friendly descriptions
+- [ ] Verify breaking changes are highlighted
+- [ ] Check all version bumps are correct
+- [ ] Optionally use Claude/AI for enhancement
+- [ ] Manually edit if needed
+
+### Before Finalize Phase
+
+- [ ] Satisfied with `CHANGELOG.md` content
+- [ ] Reviewed all changes: `git diff`
+- [ ] Ready to commit and push
+
+### After Pushing Release
 
 - [ ] GitHub Actions workflow completed successfully
 - [ ] Package published to npm
 - [ ] Version visible with `npm view @ibm/ibmi-mcp-server`
 - [ ] GitHub release created manually with polished notes
-- [ ] CHANGELOG.md updated in repository
+- [ ] Announce release (if applicable)
 
 ## First-Time Release
 
