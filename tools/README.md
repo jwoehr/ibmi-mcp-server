@@ -684,6 +684,78 @@ The `tableFormat` and `maxDisplayRows` fields are optional. If omitted, the tool
 
 ---
 
+### Fetch-Row Controls (Database Fetch Limits)
+
+> **Note:** These controls affect how many rows are **fetched from the database**, which is distinct from `maxDisplayRows` above (that only truncates the rendered markdown table).
+
+The two fields **compose**: `fetchAllRows` is the pagination *policy* ("keep paging until the result is exhausted"); `rowsToFetch`, when set, is the per-fetch *size* in that mode, or a single-shot row cap when `fetchAllRows` is off.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `rowsToFetch` | integer (≥ 1) | mapepire default (100) | With `fetchAllRows: true`, the number of rows per `fetchMore` call. Without `fetchAllRows`, a single-shot cap on `FETCH FIRST :limit ROWS ONLY` style queries. |
+| `fetchAllRows` | boolean | `false` | When `true`, paginate until the database reports `is_done` or the safety ceiling (`IBMI_PAGINATION_MAX_ROWS`, default 30000) is reached. |
+
+**Three useful combinations:**
+
+| Config | Behavior |
+|---|---|
+| `rowsToFetch: N` alone | Single-shot `execute(N)` — up to N rows returned |
+| `fetchAllRows: true` alone | Paginate, `IBMI_PAGINATION_DEFAULT_PAGE_SIZE` (default 1000) per fetch |
+| `fetchAllRows: true, rowsToFetch: N` | Paginate, **N rows per fetch** — useful for wide rows where the default page is too large |
+
+The per-call row ceiling is controlled by the `IBMI_PAGINATION_MAX_ROWS` env var (default 30000). When a paginated result hits the cap, the server truncates the result set and emits a warning log; the CLI surfaces the truncation in its output footer.
+
+**⚠️ Context-bloat warning:** Large result sets consume LLM context quickly. Prefer `rowsToFetch` with a deliberate small value; only use `fetchAllRows` for small catalogs or when the caller has explicitly requested a full dump.
+
+**Example — lift the 100-row cap for a single call:**
+
+```yaml
+tools:
+  list_customers:
+    source: ibmi
+    description: "List up to 500 customers"
+    rowsToFetch: 500        # lets FETCH FIRST :limit ROWS ONLY actually return 500
+    statement: |
+      SELECT ID, NAME FROM MYLIB.CUSTOMERS
+      FETCH FIRST :limit ROWS ONLY
+    parameters:
+      - name: limit
+        type: integer
+        default: 500
+        min: 1
+        max: 500
+```
+
+**Example — fetch everything (small catalogs only):**
+
+```yaml
+tools:
+  list_all_schemas:
+    source: ibmi
+    description: "List every schema (small catalog)"
+    fetchAllRows: true      # paginates until is_done, bounded by IBMI_PAGINATION_MAX_ROWS
+    statement: |
+      SELECT SCHEMA_NAME FROM QSYS2.SYSSCHEMAS
+      ORDER BY SCHEMA_NAME
+```
+
+**Example — paginate with a custom page size (wide rows):**
+
+```yaml
+tools:
+  export_all_columns:
+    source: ibmi
+    description: "Stream every column of every table in SAMPLE"
+    fetchAllRows: true      # paginate
+    rowsToFetch: 500        # 500 rows per fetchMore call (smaller pages for wider rows)
+    statement: |
+      SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE, LENGTH
+      FROM QSYS2.SYSCOLUMNS2
+      WHERE TABLE_SCHEMA = 'SAMPLE'
+```
+
+---
+
 ### Table Format Styles
 
 The `tableFormat` field controls the visual style of result tables. Four styles are available:

@@ -4,7 +4,7 @@ description: "Complete reference for defining SQL tools including parameters, va
 ---
 
 <Info>
-**Official Schema**: See the [JSON Schema definition](https://github.com/IBM/ibmi-mcp-server/blob/main/server/src/ibmi-mcp-server/schemas/json/sql-tools-config.json) for the authoritative tool configuration specification.
+**Official Schema**: See the [JSON Schema definition](https://github.com/IBM/ibmi-mcp-server/blob/main/packages/server/src/ibmi-mcp-server/schemas/json/sql-tools-config.json) for the authoritative tool configuration specification.
 </Info>
 
 Tools are individual SQL operations that AI agents can discover and execute. Each tool encapsulates a SQL statement, parameter definitions, validation rules, and execution metadata.
@@ -430,6 +430,139 @@ tools:
 **Response types:**
 - **json** - Structured data (default, best for AI processing)
 - **markdown** - Formatted text with markdown syntax
+
+---
+
+## Fetch-Row Controls
+
+Control how many rows are **fetched from the database** per tool call. These are distinct from [`maxDisplayRows`](/sql-tools/output-formats#maximum-display-rows), which only truncates the rendered markdown table.
+
+<Note>
+**Database vs. display limits:** `rowsToFetch` / `fetchAllRows` change how many rows the server pulls from Db2 for i. `maxDisplayRows` only affects how many rows appear in the formatted output. A tool can fetch 500 rows from the database but render only the first 100 in markdown.
+</Note>
+
+### Fields
+
+The two fields **compose**: `fetchAllRows` is the pagination *policy*; `rowsToFetch`, when set, is the per-fetch *size* in pagination mode, or a single-shot row cap when `fetchAllRows` is off.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `rowsToFetch` | integer (≥ 1) | `100` (mapepire default) | With `fetchAllRows: true`, the number of rows per `fetchMore` call. Without `fetchAllRows`, a single-shot cap applied to `FETCH FIRST :limit ROWS ONLY`-style queries. |
+| `fetchAllRows` | boolean | `false` | When `true`, paginate until the database reports `is_done` or the safety ceiling (`IBMI_PAGINATION_MAX_ROWS`, default `30000`) is reached. |
+
+### Composition
+
+| Config | Behavior |
+|---|---|
+| `rowsToFetch: N` alone | Single-shot `execute(N)` — up to N rows, one round-trip |
+| `fetchAllRows: true` alone | Paginate with `IBMI_PAGINATION_DEFAULT_PAGE_SIZE` (default `1000`) per fetch |
+| `fetchAllRows: true, rowsToFetch: N` | Paginate with **N rows per fetch** — tune per tool for wide rows |
+
+When the paginated result hits `IBMI_PAGINATION_MAX_ROWS`, the server truncates the rows returned and emits a warning log. The CLI surfaces the truncation in the output footer so callers know the result was clipped.
+
+<Warning>
+**Context-bloat warning:** Large result sets consume LLM context quickly. Prefer `rowsToFetch` with a deliberate small value; only use `fetchAllRows` for small catalogs or when the caller has explicitly requested a full dump.
+</Warning>
+
+<Tabs>
+  <Tab title="rowsToFetch (single-shot)">
+    **Lift the 100-row cap for a single call**
+
+    ```yaml
+    tools:
+      list_customers:
+        source: ibmi-system
+        description: "List up to 500 customers"
+        rowsToFetch: 500          # lets FETCH FIRST :limit ROWS ONLY actually return 500
+        statement: |
+          SELECT ID, NAME FROM MYLIB.CUSTOMERS
+          FETCH FIRST :limit ROWS ONLY
+        parameters:
+          - name: limit
+            type: integer
+            default: 500
+            minimum: 1
+            maximum: 500
+    ```
+
+    **Use when:**
+    - Your `FETCH FIRST :limit ROWS ONLY` clause needs more than 100 rows
+    - You know the expected result size and want a predictable ceiling
+    - You want row-count safety without running paginated fetches
+
+    <Note>
+    Setting `rowsToFetch` alone does **not** automatically raise your SQL's `FETCH FIRST` clause — you still need a parameter or literal that matches. `rowsToFetch` is the ceiling at the driver level.
+    </Note>
+  </Tab>
+
+  <Tab title="fetchAllRows (paginate)">
+    **Fetch everything (small catalogs only)**
+
+    ```yaml
+    tools:
+      list_all_schemas:
+        source: ibmi-system
+        description: "List every schema (small catalog)"
+        fetchAllRows: true        # paginates until is_done, bounded by IBMI_PAGINATION_MAX_ROWS
+        statement: |
+          SELECT SCHEMA_NAME FROM QSYS2.SYSSCHEMAS
+          ORDER BY SCHEMA_NAME
+    ```
+
+    **Use when:**
+    - The result set is known to be small (reference tables, catalogs, enums)
+    - The caller explicitly asks for a complete dump
+    - You don't know the result size up front but want completeness
+
+    <Warning>
+    Paginated fetches are bounded by `IBMI_PAGINATION_MAX_ROWS` (default `30000`). Beyond that the server truncates and flags the result — do not rely on `fetchAllRows` for true bulk exports.
+    </Warning>
+  </Tab>
+
+  <Tab title="Paginate with custom page size">
+    **Compose both fields for wide-row tables**
+
+    ```yaml
+    tools:
+      export_all_columns:
+        source: ibmi-system
+        description: "Stream every column of every table in SAMPLE"
+        fetchAllRows: true        # paginate until exhausted
+        rowsToFetch: 500          # 500 rows per fetchMore call
+        statement: |
+          SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE, LENGTH
+          FROM QSYS2.SYSCOLUMNS2
+          WHERE TABLE_SCHEMA = 'SAMPLE'
+    ```
+
+    **Use when:**
+    - The result set is large **and** you need a smaller per-fetch page (wide rows, memory-sensitive environments)
+    - The default page size (1000) produces fetches that are too large for your link
+    - You want explicit control over the WebSocket round-trip/memory tradeoff per tool
+
+    <Note>
+    Both fields working together is the most expressive option: policy (paginate) and size (per-fetch page) are independent knobs. `rowsToFetch` without `fetchAllRows` stays a single-shot cap.
+    </Note>
+  </Tab>
+
+  <Tab title="Default (neither)">
+    **Backward-compatible 100-row cap**
+
+    ```yaml
+    tools:
+      recent_jobs:
+        source: ibmi-system
+        description: "Recent active jobs (up to 100)"
+        statement: |
+          SELECT JOB_NAME, USER_NAME, CPU_USED
+          FROM QSYS2.ACTIVE_JOB_INFO
+          ORDER BY CPU_USED DESC
+        # No rowsToFetch / fetchAllRows → 100 rows
+    ```
+
+    Tools with neither property set fetch up to **100 rows** — the mapepire driver default. This is the pre-existing behavior and requires no changes to keep working.
+  </Tab>
+</Tabs>
 
 ---
 
